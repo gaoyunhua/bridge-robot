@@ -1,0 +1,37 @@
+# Virtual environment
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Data files
+data/*.jsonl
+data/*.npz
+data/*.pkl
+data/激进叫牌/
+
+# Models
+models/*.pt
+
+# Checkpoints
+checkpoints/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+gen_log.txt
+
+# Temporary files
+tmp*.jsonl
+tmp*.npz
+test_*.py
+test_debug.py
+test_penalty.py
+test_trained_model.py

@@ -1,0 +1,1217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bridge Game - 100% Endplay</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a472a, #2d5a27, #1e3a1e);
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            color: #333;
+        }
+        
+        .container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        /* Menu Styles */
+        .menu-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 90vh;
+            color: white;
+        }
+        
+        .menu-screen h1 {
+            font-size: 3.5rem;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .menu-screen p {
+            font-size: 1.2rem;
+            margin-bottom: 40px;
+            opacity: 0.9;
+        }
+        
+        .menu-buttons {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .menu-btn {
+            padding: 20px 40px;
+            font-size: 1.3rem;
+            background: white;
+            color: #1a472a;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+        }
+        
+        .menu-btn:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.4);
+        }
+        
+        /* Game Screen */
+        .game-screen {
+            display: none;
+            width: 100%;
+            height: 100%;
+            position: relative;
+        }
+        
+        /* Game Table */
+        .game-table {
+            background: #0d260d;
+            border-radius: 50%;
+            width: 95vmin;
+            height: 95vmin;
+            max-width: 900px;
+            max-height: 900px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 25px 75px rgba(0,0,0,0.6), inset 0 0 30px rgba(0,0,0,0.4);
+            border: 8px solid #0a1f0a;
+            overflow: visible;
+        }
+        
+        /* Play Round (Trick) - Middle of Table */
+        .play-round {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 10%;
+            height: 10%;
+            border-radius: 50%;
+            background: transparent;
+            border: none;
+            pointer-events: none;
+        }
+        
+        .trick-card {
+            position: absolute;
+            width: 7vmin;
+            height: 9.5vmin;
+            background: white;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8vmin;
+            font-weight: bold;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+        
+        .trick-card.north {
+            top: 3%;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        .trick-card.east {
+            right: 3%;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        
+        .trick-card.south {
+            bottom: 3%;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        .trick-card.west {
+            left: 3%;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        
+        .trick-card.red {
+            color: #dc143c;
+        }
+        
+        .trick-card.black {
+            color: #000;
+        }
+        
+        .player-area {
+            position: absolute;
+            width: 25vmin;
+            height: 12vmin;
+            text-align: center;
+            color: white;
+        }
+        
+        .player-area.north {
+            top: 2%;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        .player-area.east {
+            right: 2%;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        
+        .player-area.south {
+            bottom: 2%;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        .player-area.west {
+            left: 2%;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        
+        .player-name {
+            font-size: 2vmin;
+            font-weight: bold;
+            margin-bottom: 1vmin;
+            padding: 1vmin 2vmin;
+            background: rgba(0,0,0,0.6);
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .player-name.human {
+            background: rgba(255,215,0,0.5);
+            border: 1px solid #ffd700;
+            color: #000;
+        }
+        
+        .player-name.current {
+            animation: pulse 1.2s infinite;
+            border-color: #ffeb3b;
+            box-shadow: 0 0 20px rgba(255,235,59,0.4);
+        }
+        
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(255,235,59,0.6); }
+            50% { box-shadow: 0 0 0 8px rgba(255,235,59,0.1); }
+        }
+        
+        /* Cards - Slice Stacked Layout */
+        .hand {
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            margin-top: 2%;
+            padding: 2%;
+            position: relative;
+            height: 10vmin;
+            overflow: visible;
+        }
+        
+        .card {
+            position: absolute;
+            width: 5.5vmin;
+            height: 7.5vmin;
+            background: white;
+            border-radius: 4px;
+            box-shadow: 2px 3px 8px rgba(0,0,0,0.5);
+            transition: all 0.2s ease;
+            cursor: default;
+            padding: 0;
+            margin: 0;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .card:hover {
+            transform: translateY(-15px) scale(1.15);
+            box-shadow: 5px 8px 25px rgba(0,0,0,0.7);
+            z-index: 1000 !important;
+        }
+        
+        .card img, .card-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            padding: 0;
+            margin: 0;
+            border: none;
+        }
+        
+        .card-text {
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8vmin;
+            font-weight: bold;
+        }
+        
+        .card-back {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: transparent;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .played-card {
+            position: absolute;
+        }
+        
+        /* Info Panel */
+        .info-panel {
+            background: rgba(255,255,255,0.95);
+            padding: 1.5vmin;
+            border-radius: 8px;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+            width: 25vmin;
+            position: fixed;
+            right: 2vmin;
+            top: 2vmin;
+        }
+        
+        .info-panel h2 {
+            color: #1a472a;
+            margin-bottom: 1.5vmin;
+            font-size: 2vmin;
+        }
+        
+        .trick-score {
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.8vmin;
+            margin-bottom: 1.5vmin;
+            font-weight: bold;
+        }
+        
+        /* Bidding */
+        .bidding-history {
+            background: #f0f8f0;
+            padding: 1.5vmin;
+            border-radius: 6px;
+            margin-bottom: 1.5vmin;
+            border: 1px solid #c8e6c9;
+        }
+        
+        .bid-item {
+            display: inline-block;
+            margin: 0.3vmin;
+        }
+        
+        .bid-player {
+            display: inline-block;
+            width: 4vmin;
+            height: 4vmin;
+            line-height: 4vmin;
+            text-align: center;
+            background: #333;
+            color: white;
+            border-radius: 50%;
+            font-size: 1.8vmin;
+            font-weight: bold;
+            margin-right: 0.5vmin;
+        }
+        
+        .bid-source {
+            display: inline-block;
+            padding: 0.2vmin 0.6vmin;
+            font-size: 1.2vmin;
+            border-radius: 3px;
+            margin-left: 0.5vmin;
+            font-weight: bold;
+        }
+        
+        .bid-source.dds {
+            background: #7b1fa2;
+            color: white;
+        }
+        
+        .bid-source.model {
+            background: #ff9800;
+            color: white;
+        }
+        
+        .bid-source.fallback {
+            background: #607d8b;
+            color: white;
+        }
+        
+        .bid {
+            display: inline-block;
+            padding: 0.5vmin 1vmin;
+            background: white;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            font-size: 1.4vmin;
+            font-weight: 600;
+        }
+        
+        .bid.red {
+            color: #dc143c;
+            border-color: #dc143c;
+            background: #ffebee;
+        }
+        
+        .bid.green {
+            color: #2e7d32;
+            border-color: #2e7d32;
+            background: #e8f5e9;
+        }
+        
+        .bid.normal {
+            color: #1565c0;
+            border-color: #1565c0;
+            background: #e3f2fd;
+        }
+        
+        .bid.dds {
+            color: #7b1fa2;
+            border-color: #7b1fa2;
+            background: #f3e5f5;
+            font-weight: bold;
+        }
+        
+        .bid.dds_pass {
+            color: #558b2f;
+            border-color: #558b2f;
+            background: #e8f5e9;
+            font-weight: bold;
+        }
+        
+        .bid.dds_double {
+            color: #c62828;
+            border-color: #c62828;
+            background: #ffebee;
+            font-weight: bold;
+        }
+        
+        .bid.model {
+            color: #00897b;
+            border-color: #00897b;
+            background: #e0f2f1;
+            font-weight: bold;
+            text-decoration: underline;
+        }
+        
+        .bid.model_pass {
+            color: #8bc34a;
+            border-color: #8bc34a;
+            background: #f1f8e9;
+            font-weight: bold;
+            text-decoration: underline;
+        }
+        
+        .bid.model_double {
+            color: #ff5722;
+            border-color: #ff5722;
+            background: #fff3e0;
+            font-weight: bold;
+            text-decoration: underline;
+        }
+        
+        /* Controls */
+        .controls {
+            margin-top: 1.5vmin;
+            text-align: center;
+        }
+        
+        .action-btn {
+            padding: 1.5vmin 3vmin;
+            margin: 0.5vmin;
+            background: #1a472a;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.6vmin;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+        
+        .action-btn:hover {
+            background: #2d5a27;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0,0,0,0.3);
+        }
+        
+        /* Bidding Panel */
+        .bidding-panel {
+            display: none;
+            background: rgba(255,255,255,0.98);
+            padding: 2vmin;
+            border-radius: 10px;
+            width: 50vmin;
+            margin-left: auto;
+            margin-right: auto;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+            cursor: move;
+            z-index: 1000;
+            position: fixed;
+            top: 10vmin;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        .bidding-panel h3 {
+            color: #1a472a;
+            margin-bottom: 2vmin;
+            text-align: center;
+            font-size: 2.2vmin;
+        }
+        
+        .bidding-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 0.5vmin;
+            margin-bottom: 2vmin;
+        }
+        
+        .bid-btn {
+            padding: 1.5vmin 1vmin;
+            font-size: 1.8vmin;
+            border: 0.3vmin solid #1565c0;
+            background: white;
+            color: #1565c0;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+        
+        .bid-btn:hover:not(:disabled) {
+            background: #1565c0;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(21,101,192,0.3);
+        }
+        
+        .bid-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+            transform: none;
+            border-color: #ccc;
+            color: #999;
+        }
+        
+        .bid-btn.dds-recommended {
+            background: #ffcccc;
+            border-color: #dc143c;
+            color: #dc143c;
+            animation: dds-pulse 1s infinite;
+        }
+        
+        @keyframes dds-pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(220,20,60,0.4); }
+            50% { box-shadow: 0 0 8px 4px rgba(220,20,60,0.2); }
+        }
+        
+        .special-bids {
+            display: flex;
+            gap: 1.5vmin;
+            justify-content: center;
+        }
+        
+        .special-bids .bid-btn.pass {
+            background: #e8f5e9;
+            border-color: #2e7d32;
+            color: #2e7d32;
+        }
+        
+        .special-bids .bid-btn.double {
+            background: #ffebee;
+            border-color: #dc143c;
+            color: #dc143c;
+        }
+        
+        .special-bids .bid-btn.redouble {
+            background: #ffeb3b;
+            border-color: #f57f17;
+            color: #f57f17;
+        }
+        
+        .special-bids .bid-btn.pass:hover:not(:disabled) {
+            background: #2e7d32;
+            color: white;
+        }
+        
+        .special-bids .bid-btn.double:hover:not(:disabled) {
+            background: #dc143c;
+            color: white;
+        }
+        
+        .special-bids .bid-btn.redouble:hover:not(:disabled) {
+            background: #f57f17;
+            color: white;
+        }
+        
+        /* Error Message */
+        .error-message {
+            background: #ffebee;
+            color: #dc143c;
+            padding: 1.5vmin;
+            border-radius: 6px;
+            margin-top: 1.5vmin;
+            text-align: center;
+            font-weight: 600;
+            border: 1px solid #dc143c;
+            display: none;
+            font-size: 1.4vmin;
+        }
+        
+        .error-message.show {
+            display: block;
+        }
+        
+        /* Vulnerability */
+        .vul-info {
+            margin-bottom: 1.5vmin;
+            padding: 1.2vmin;
+            background: #fff3e0;
+            border-radius: 6px;
+            font-size: 1.3vmin;
+        }
+        
+        .vul {
+            display: inline-block;
+            padding: 0.3vmin 0.8vmin;
+            border-radius: 4px;
+            margin: 0.2vmin;
+            font-weight: 600;
+        }
+        
+        .vul.ns-vul, .vul.ew-vul {
+            background: #ffebee;
+            color: #dc143c;
+        }
+        
+        .vul.ns-nonvul, .vul.ew-nonvul {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Menu Screen -->
+        <div class="menu-screen" id="menuScreen">
+            <h1>🃏 Bridge Game</h1>
+            <p>100% endplay-powered bridge experience</p>
+            <div class="menu-buttons">
+                <button class="menu-btn" onclick="startGame('4ai')">
+                    🤖 4 AI Players (Watch)
+                </button>
+                <button class="menu-btn" onclick="startGame('3ai1human')">
+                    🧑‍🤝‍🤖 3 AI + 1 Human
+                </button>
+            </div>
+        </div>
+        
+        <!-- Game Screen -->
+        <div class="game-screen" id="gameScreen">
+            <!-- Game Table -->
+            <div class="game-table">
+                <div class="player-area north">
+                    <div class="player-name" id="northName">North</div>
+                    <div class="hand" id="northHand"></div>
+                </div>
+                
+                <div class="player-area east">
+                    <div class="player-name" id="eastName">East</div>
+                    <div class="hand" id="eastHand"></div>
+                </div>
+                
+                <div class="player-area south">
+                    <div class="player-name" id="southName">South</div>
+                    <div class="hand" id="southHand"></div>
+                </div>
+                
+                <div class="player-area west">
+                    <div class="player-name" id="westName">West</div>
+                    <div class="hand" id="westHand"></div>
+                </div>
+                
+                <!-- Play Round (Trick) - Middle of Table -->
+                <div class="play-round" id="playRound"></div>
+            </div>
+            
+            <!-- Info Panel -->
+            <div class="info-panel">
+                <h2>🎮 Game Info</h2>
+                
+                <div class="vul-info" id="vulInfo">
+                    <strong>Vulnerability:</strong>
+                </div>
+                
+                <div class="trick-score">
+                    <span>NS: <span id="nsTricks">0</span></span>
+                    <span>EW: <span id="ewTricks">0</span></span>
+                </div>
+                
+                <div id="biddingInfo">
+                    <h3>📢 Bidding</h3>
+                    <div class="bidding-history" id="biddingHistory"></div>
+                </div>
+                
+                <div class="controls">
+                    <button class="action-btn" onclick="togglePause()" id="pauseBtn">
+                        ⏸️ Pause
+                    </button>
+                    <button class="action-btn" onclick="aiBid()" id="aiBidBtn">
+                        🤖 AI Bid
+                    </button>
+                    <button class="action-btn" onclick="goToMenu()">
+                        🏠 Main Menu
+                    </button>
+                </div>
+                
+                <div class="error-message" id="errorMessage"></div>
+            </div>
+            
+            <!-- Bidding Panel -->
+            <div class="bidding-panel" id="biddingPanel">
+                <h3>🎯 Your Turn to Bid</h3>
+                <div class="bidding-grid" id="biddingGrid"></div>
+                <div class="special-bids">
+                    <button class="bid-btn pass" onclick="makeBid('Pass')">Pass</button>
+                    <button class="bid-btn double" onclick="makeBid('Double')">Double</button>
+                    <button class="bid-btn redouble" onclick="makeBid('Redouble')">Redouble</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let humanPlayer = null;
+        let isDragging = false;
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
+        let autoPlayRunning = false;
+        let isPaused = false;
+        
+        function initDraggable(element) {
+            element.addEventListener('mousedown', startDrag);
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('mouseup', stopDrag);
+        }
+        
+        function startDrag(e) {
+            if (e.target.tagName === 'BUTTON') return;
+            isDragging = true;
+            const rect = e.target.getBoundingClientRect();
+            dragOffsetX = e.clientX - rect.left;
+            dragOffsetY = e.clientY - rect.top;
+        }
+        
+        function drag(e) {
+            if (!isDragging) return;
+            const panel = document.getElementById('biddingPanel');
+            panel.style.position = 'fixed';
+            panel.style.left = (e.clientX - dragOffsetX) + 'px';
+            panel.style.top = (e.clientY - dragOffsetY) + 'px';
+            panel.style.bottom = 'auto';
+            panel.style.marginLeft = '0';
+            panel.style.marginRight = '0';
+        }
+        
+        function stopDrag() {
+            isDragging = false;
+        }
+        
+        const suits = ['C', 'D', 'H', 'S', 'NT'];
+        
+        async function startGame(mode) {
+            const response = await fetch('/api/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode: mode })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                document.getElementById('menuScreen').style.display = 'none';
+                document.getElementById('gameScreen').style.display = 'block';
+                humanPlayer = result.state.human_player;
+                
+                updateGame(result.state);
+                
+                if (mode === '4ai') {
+                    autoPlay();
+                }
+            }
+        }
+        
+        function cardToImageUrl(cardStr) {
+            if (!cardStr || cardStr === '?') return null;
+            const suitMap = {'S': 'spades', 'H': 'hearts', 'D': 'diamonds', 'C': 'clubs'};
+            const rankMap = {'A': 'ace', '2': '2', '3': '3', '4': '4', '5': '5', '6': '6', '7': '7', '8': '8', '9': '9', 'T': '10', 'J': 'jack', 'Q': 'queen', 'K': 'king'};
+            const suit = cardStr[0];
+            const rank = cardStr.slice(1);
+            if (suitMap[suit] && rankMap[rank]) {
+                return `/static/cards/png/${rankMap[rank]}_of_${suitMap[suit]}.png`;
+            }
+            return null;
+        }
+        
+        function getCardColor(cardStr) {
+            if (!cardStr || cardStr === '?') return 'black';
+            return (cardStr.includes('♥') || cardStr.includes('♦') || cardStr[0] === 'H' || cardStr[0] === 'D') ? 'red' : 'black';
+        }
+        
+        async function updateGame(state) {
+            if (!state) return;
+            
+            document.getElementById('nsTricks').textContent = state.tricks_ns;
+            document.getElementById('ewTricks').textContent = state.tricks_ew;
+            
+            const vulInfo = document.getElementById('vulInfo');
+            vulInfo.innerHTML = `<strong>Vulnerability:</strong> ` +
+                `<span class="vul ${state.vul.ns ? 'ns-vul' : 'ns-nonvul'}">NS: ${state.vul.ns ? 'Vul' : 'Non-Vul'}</span>` +
+                `<span class="vul ${state.vul.ew ? 'ew-vul' : 'ew-nonvul'}">EW: ${state.vul.ew ? 'Vul' : 'Non-Vul'}</span>`;
+            
+            const biddingDiv = document.getElementById('biddingHistory');
+            const playerNames = ['N', 'E', 'S', 'W'];
+            biddingDiv.innerHTML = state.bidding.map(b => 
+                `<span class="bid-item"><span class="bid-player">${playerNames[b.player]}</span><span class="bid ${b.color}">${b.bid}</span></span>`
+            ).join('');
+            
+            ['northName', 'eastName', 'southName', 'westName'].forEach((id, idx) => {
+                const el = document.getElementById(id);
+                el.classList.remove('current', 'human');
+                
+                if (idx === state.current_player) {
+                    el.classList.add('current');
+                }
+                
+                if (humanPlayer !== null && idx === humanPlayer) {
+                    el.classList.add('human');
+                }
+            });
+            
+            updateHands(state.hands, humanPlayer, state);
+
+            // 显示打出的牌
+            const existingContainer = document.getElementById('playedCardsContainer');
+            if (existingContainer) {
+                existingContainer.remove();
+            }
+
+            const trickHistory = state.trick_history || [];
+            console.log('=== DEBUG: trickHistory ===', trickHistory, 'length:', trickHistory.length);
+
+            if (trickHistory.length > 0) {
+                console.log('Creating played cards container');
+                const container = document.createElement('div');
+                container.id = 'playedCardsContainer';
+                container.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;pointer-events:none;z-index:99999;overflow:visible;';
+
+                for (let i = 0; i < trickHistory.length; i++) {
+                    const card = trickHistory[i];
+                    console.log('Rendering card ' + i + ': ' + card);
+                    const imgUrl = cardToImageUrl(card);
+                    console.log('Image URL: ' + imgUrl);
+
+                    const posInTrick = i % 4;
+                    const trickNum = Math.floor(i / 4);
+
+                    const cardDiv = document.createElement('div');
+                    cardDiv.style.cssText = 'position:absolute;z-index:' + (10000 + i) + ';pointer-events:none;';
+
+                    // All cards centered in the middle, stacked with small offset
+                    let leftVal = '50vw';
+                    let topVal = '50vh';
+
+                    // Each card shifts slightly to create a fan effect
+                    const shiftX = posInTrick * 8; // 8px horizontal shift per position
+                    const shiftY = posInTrick * (-12); // 12px upward shift per position
+                    const rotation = posInTrick * 5; // 5° rotation per position
+
+                    // Per-trick offset: each new trick shifts down
+                    const trickOffset = trickNum * 25; // 25px down per trick
+
+                    cardDiv.style.left = `calc(${leftVal} + ${shiftX}px)`;
+                    cardDiv.style.top = `calc(${topVal} + ${shiftY + trickOffset}px)`;
+                    cardDiv.style.transform = `translate(-50%, -50%) rotate(${rotation}deg)`;
+
+                    // Played cards: 40px × 56px (about 60% of hand cards)
+                    if (imgUrl) {
+                        const img = document.createElement('img');
+                        img.src = imgUrl;
+                        img.alt = card;
+                        img.style.cssText = 'width:40px;height:56px;display:block;border-radius:3px;box-shadow:0 2px 8px rgba(0,0,0,0.5);';
+                        img.onerror = function() {
+                            console.error('Failed to load: ' + imgUrl);
+                        };
+                        img.onload = function() {
+                            console.log('Loaded: ' + imgUrl);
+                        };
+                        cardDiv.appendChild(img);
+                    } else {
+                        const textDiv = document.createElement('div');
+                        const isRed = getCardColor(card) === 'red';
+                        textDiv.style.cssText = 'width:40px;height:56px;background:white;border-radius:3px;box-shadow:0 2px 8px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:bold;color:' + (isRed ? '#dc143c' : '#000') + ';';
+                        textDiv.textContent = card;
+                        cardDiv.appendChild(textDiv);
+                    }
+
+                    container.appendChild(cardDiv);
+                    console.log('Card ' + i + ' appended');
+                }
+
+                document.body.appendChild(container);
+                console.log('Container appended to body. Children:', container.children.length);
+            } else {
+                console.log('No trick history');
+            }
+            
+            if (humanPlayer !== null && 
+                state.current_player === humanPlayer && 
+                state.phase === 'bidding') {
+                
+                document.getElementById('aiBidBtn').style.display = 'none';
+                await showBiddingPanel(state);
+            } else {
+                document.getElementById('aiBidBtn').style.display = 'inline-block';
+                document.getElementById('biddingPanel').style.display = 'none';
+            }
+        }
+        
+        function updateHands(hands, humanIdx, state) {
+            const playerAreas = ['northHand', 'eastHand', 'southHand', 'westHand'];
+            const vmin = Math.min(window.innerWidth, window.innerHeight) * 0.01;
+            const stackOffset = vmin * 1.83;
+            const isHumanTurn = state && state.current_player === humanIdx && state.phase === 'play';
+            
+            const suitOrder = {'S': 0, 'H': 1, 'C': 2, 'D': 3};
+            const rankOrder = {'A': 12, 'K': 11, 'Q': 10, 'J': 9, 'T': 8, '9': 7, '8': 6, '7': 5, '6': 4, '5': 3, '4': 2, '3': 1, '2': 0};
+            
+            function sortCards(cards) {
+                return [...cards].sort((a, b) => {
+                    const suitA = a[0], suitB = b[0];
+                    if (suitA !== suitB) return suitOrder[suitA] - suitOrder[suitB];
+                    return rankOrder[a.slice(1)] - rankOrder[b.slice(1)];
+                });
+            }
+            
+            playerAreas.forEach((handId, idx) => {
+                const handDiv = document.getElementById(handId);
+                const player = ['north', 'east', 'south', 'west'][idx];
+                let cards = hands[player] || [];
+                
+                // 确保cards是数组
+                if (!Array.isArray(cards)) {
+                    cards = [];
+                }
+                
+                cards = sortCards(cards);
+                const isHuman = idx === humanIdx;
+                const canPlay = isHumanTurn && isHuman;
+                
+                const cardWidth = vmin * 5.5;
+                const totalWidth = (cards.length - 1) * stackOffset + cardWidth;
+                const startX = -totalWidth / 2;
+                
+                if (cards.length > 0) {
+                    handDiv.innerHTML = cards.map((card, cardIdx) => {
+                        const x = startX + cardIdx * stackOffset;
+                        if (isHuman || card !== '?') {
+                            const isRed = card.includes('H') || card.includes('D');
+                            const imgUrl = cardToImageUrl(card);
+                            if (canPlay) {
+                                if (imgUrl) {
+                                    return `<img src="${imgUrl}" alt="${card}" class="card playable" style="left: calc(50% + ${x}px); bottom: 0.5vmin; z-index: ${cardIdx + 1}; position: absolute; cursor: pointer;" onclick="playCard('${card}')">`;
+                                }
+                                return `<div class="card card-text ${isRed ? 'red' : 'black'} playable" style="left: calc(50% + ${x}px); bottom: 0.5vmin; z-index: ${cardIdx + 1}; cursor: pointer;" onclick="playCard('${card}')">${card}</div>`;
+                            }
+                            if (imgUrl) {
+                                return `<img src="${imgUrl}" alt="${card}" class="card" style="left: calc(50% + ${x}px); bottom: 0.5vmin; z-index: ${cardIdx + 1}; position: absolute;">`;
+                            }
+                            return `<div class="card card-text ${isRed ? 'red' : 'black'}" style="left: calc(50% + ${x}px); bottom: 0.5vmin; z-index: ${cardIdx + 1};">${card}</div>`;
+                        } else {
+                            return `<div class="card card-back" style="left: calc(50% + ${x}px); bottom: 0.5vmin; z-index: ${cardIdx + 1};"></div>`;
+                        }
+                    }).join('');
+                }
+            });
+        }
+        
+        function bidToActionIdx(level, suitIdx) {
+            return (level - 1) * 5 + suitIdx;
+        }
+        
+        function getDdsRecommendedBtn(state) {
+            if (state.dds_recommended_action === null || state.dds_recommended_action === undefined) {
+                return null;
+            }
+            const action = state.dds_recommended_action;
+            if (action === 35) return 'Pass';
+            if (action === 36) return 'Double';
+            if (action === 37) return 'Redouble';
+            const level = Math.floor(action / 5) + 1;
+            const denomIdx = action % 5;
+            const denoms = ['C', 'D', 'H', 'S', 'NT'];
+            return `${level}${denoms[denomIdx]}`;
+        }
+        
+        async function showBiddingPanel(state) {
+            const panel = document.getElementById('biddingPanel');
+            panel.style.display = 'block';
+            initDraggable(panel);
+            
+            const ddsRecommended = getDdsRecommendedBtn(state);
+            
+            const grid = document.getElementById('biddingGrid');
+            grid.innerHTML = '';
+            
+            for (let level = 1; level <= 7; level++) {
+                for (let i = 0; i < suits.length; i++) {
+                    const suit = suits[i];
+                    const bidText = `${level}${suit}`;
+                    const btn = document.createElement('button');
+                    btn.className = 'bid-btn';
+                    if (ddsRecommended === bidText) {
+                        btn.classList.add('dds-recommended');
+                    }
+                    btn.textContent = bidText;
+                    btn.onclick = () => makeBid(bidText);
+                    
+                    const validResponse = await fetch('/api/validate_bid', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ bid: bidText })
+                    });
+                    
+                    const validResult = await validResponse.json();
+                    if (!validResult.valid) {
+                        btn.disabled = true;
+                    }
+                    
+                    grid.appendChild(btn);
+                }
+            }
+            
+            const specialBtns = document.querySelectorAll('.special-bids .bid-btn');
+            for (let btn of specialBtns) {
+                const bidText = btn.textContent;
+                
+                btn.classList.remove('dds-recommended');
+                if (ddsRecommended === bidText) {
+                    btn.classList.add('dds-recommended');
+                }
+                
+                const validResponse = await fetch('/api/validate_bid', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ bid: bidText })
+                });
+                
+                const validResult = await validResponse.json();
+                if (!validResult.valid) {
+                    btn.disabled = true;
+                } else {
+                    btn.disabled = false;
+                }
+            }
+        }
+        
+        async function playCard(card) {
+            const response = await fetch('/api/play_card', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ card: card })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                updateGame(result.state);
+                // 如果还在打牌阶段且不是人类玩家的回合，继续自动游戏
+                if (result.state.phase === 'play' && 
+                    humanPlayer !== null && 
+                    result.state.current_player !== humanPlayer) {
+                    await new Promise(r => setTimeout(r, 500));
+                    autoPlay();
+                }
+            } else {
+                const errorDiv = document.getElementById('errorMessage');
+                errorDiv.textContent = result.error || 'Invalid play!';
+                errorDiv.classList.add('show');
+            }
+        }
+        
+        async function makeBid(bid) {
+            const response = await fetch('/api/bid', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ bid: bid })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                document.getElementById('biddingPanel').style.display = 'none';
+                document.getElementById('errorMessage').classList.remove('show');
+                updateGame(result.state);
+                
+                if (result.state.phase === 'bidding') {
+                    autoPlay();
+                }
+            } else {
+                const errorDiv = document.getElementById('errorMessage');
+                errorDiv.textContent = result.error || 'Invalid bid!';
+                errorDiv.classList.add('show');
+            }
+        }
+        
+        async function aiBid() {
+            const response = await fetch('/api/ai_bid');
+            const result = await response.json();
+            
+            if (result.success) {
+                updateGame(result.state);
+            }
+        }
+        
+        function togglePause() {
+            if (isPaused) {
+                // Resume: restart autoPlay if it's not running
+                isPaused = false;
+                document.getElementById('pauseBtn').innerHTML = '⏸️ Pause';
+                if (!autoPlayRunning) {
+                    autoPlay();
+                }
+            } else {
+                // Pause: just set the flag
+                isPaused = true;
+                document.getElementById('pauseBtn').innerHTML = '▶️ Resume';
+            }
+        }
+
+        async function autoPlay() {
+            autoPlayRunning = true;
+            isPaused = false;
+            document.getElementById('pauseBtn').innerHTML = '⏸️ Pause';
+            
+            while (autoPlayRunning) {
+                await new Promise(r => setTimeout(r, 800));
+                
+                while (isPaused && autoPlayRunning) {
+                    await new Promise(r => setTimeout(r, 200));
+                }
+                
+                if (!autoPlayRunning) break;
+                
+                const stateResp = await fetch('/api/state');
+                const stateData = await stateResp.json();
+                
+                if (!stateData.state) break;
+                
+                if (stateData.state.phase === 'game_over') {
+                    updateGame(stateData.state);
+                    await new Promise(r => setTimeout(r, 2000));
+                    autoPlayRunning = false;
+                    await startGame(humanPlayer === null ? '4ai' : '3ai1human');
+                    break;
+                }
+                
+                if (humanPlayer !== null && 
+                    stateData.state.current_player === humanPlayer) {
+                    break;
+                }
+                
+                if (stateData.state.phase === 'bidding') {
+                    const response = await fetch('/api/ai_bid');
+                    const result = await response.json();
+                    
+                    if (!result.success) {
+                        // Bidding failed, check if game is over
+                        const checkResp = await fetch('/api/state');
+                        const checkData = await checkResp.json();
+                        if (checkData.state && checkData.state.phase === 'game_over') {
+                            updateGame(checkData.state);
+                            await new Promise(r => setTimeout(r, 2000));
+                            autoPlayRunning = false;
+                            await startGame(humanPlayer === null ? '4ai' : '3ai1human');
+                        }
+                        break;
+                    }
+                    
+                    updateGame(result.state);
+                    
+                    // Check if bidding just ended and game is over
+                    if (result.state.phase === 'game_over') {
+                        await new Promise(r => setTimeout(r, 2000));
+                        autoPlayRunning = false;
+                        await startGame(humanPlayer === null ? '4ai' : '3ai1human');
+                        break;
+                    }
+                } else if (stateData.state.phase === 'play') {
+                    const response = await fetch('/api/ai_play');
+                    const result = await response.json();
+                    
+                    if (!result.success) {
+                        // Play failed, check if game is over
+                        const checkResp = await fetch('/api/state');
+                        const checkData = await checkResp.json();
+                        if (checkData.state && checkData.state.phase === 'game_over') {
+                            updateGame(checkData.state);
+                            await new Promise(r => setTimeout(r, 2000));
+                            autoPlayRunning = false;
+                            await startGame(humanPlayer === null ? '4ai' : '3ai1human');
+                        }
+                        break;
+                    }
+                    
+                    updateGame(result.state);
+                    
+                    // Check if game just ended after this play
+                    if (result.state.phase === 'game_over') {
+                        await new Promise(r => setTimeout(r, 2000));
+                        autoPlayRunning = false;
+                        await startGame(humanPlayer === null ? '4ai' : '3ai1human');
+                        break;
+                    }
+                }
+            }
+            autoPlayRunning = false;
+        }
+        
+        function goToMenu() {
+            document.getElementById('menuScreen').style.display = 'flex';
+            document.getElementById('gameScreen').style.display = 'none';
+            document.getElementById('biddingPanel').style.display = 'none';
+            document.getElementById('errorMessage').classList.remove('show');
+        }
+    </script>
+</body>
+</html>

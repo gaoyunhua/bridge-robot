@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bridge Game - Simple Version</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        /* Menu Styles */
+        .menu-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 90vh;
+            color: white;
+        }
+        
+        .menu-screen h1 {
+            font-size: 3.5rem;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .menu-screen p {
+            font-size: 1.2rem;
+            margin-bottom: 40px;
+            opacity: 0.9;
+        }
+        
+        .menu-buttons {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .menu-btn {
+            padding: 20px 40px;
+            font-size: 1.3rem;
+            background: white;
+            color: #1a2a6c;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+        }
+        
+        .menu-btn:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.4);
+        }
+        
+        /* Game Screen */
+        .game-screen {
+            display: none;
+        }
+        
+        /* Game Table */
+        .game-table {
+            background: #2d5a27;
+            border-radius: 50%;
+            width: 700px;
+            height: 700px;
+            margin: 40px auto;
+            position: relative;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        
+        .player-area {
+            position: absolute;
+            width: 180px;
+            text-align: center;
+            color: white;
+        }
+        
+        .player-area.north {
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        .player-area.east {
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        
+        .player-area.south {
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        .player-area.west {
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        
+        .player-name {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+            padding: 8px 16px;
+            background: rgba(0,0,0,0.4);
+            border-radius: 8px;
+        }
+        
+        .player-name.human {
+            background: rgba(255,215,0,0.5);
+            border: 2px solid #ffd700;
+        }
+        
+        .player-name.current {
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,0,0.7); }
+            50% { box-shadow: 0 0 0 10px rgba(255,255,0,0); }
+        }
+        
+        /* Cards */
+        .hand {
+            display: flex;
+            gap: 3px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-top: 10px;
+        }
+        
+        .card {
+            width: 45px;
+            height: 65px;
+            background: white;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            font-weight: bold;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
+        }
+        
+        .card.red {
+            color: #dc143c;
+        }
+        
+        .card.black {
+            color: #000;
+        }
+        
+        .card-back {
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: transparent;
+        }
+        
+        /* Info Panel */
+        .info-panel {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            max-width: 350px;
+            position: fixed;
+            right: 20px;
+            top: 20px;
+        }
+        
+        .info-panel h2 {
+            color: #1a2a6c;
+            margin-bottom: 20px;
+        }
+        
+        .trick-score {
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.2rem;
+            margin-bottom: 20px;
+        }
+        
+        /* Bidding */
+        .bidding-history {
+            background: #f0f0f0;
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .bid {
+            display: inline-block;
+            padding: 4px 8px;
+            background: white;
+            border-radius: 4px;
+            margin: 2px;
+            border: 1px solid #ddd;
+            font-size: 0.9rem;
+        }
+        
+        /* Controls */
+        .controls {
+            margin-top: 15px;
+            text-align: center;
+        }
+        
+        .action-btn {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #1a2a6c;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.2s ease;
+        }
+        
+        .action-btn:hover {
+            background: #2d3a6c;
+        }
+        
+        /* Bidding Panel */
+        .bidding-panel {
+            display: none;
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            margin-top: 20px;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .bidding-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+        
+        .bid-btn {
+            padding: 10px;
+            font-size: 1rem;
+            border: 2px solid #1a2a6c;
+            background: white;
+            color: #1a2a6c;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .bid-btn:hover {
+            background: #1a2a6c;
+            color: white;
+        }
+        
+        .special-bids {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+        }
+        
+        .special-bids .bid-btn {
+            background: #b21f1f;
+            border-color: #b21f1f;
+            color: white;
+        }
+        
+        .special-bids .bid-btn:hover {
+            background: #991a1a;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Menu Screen -->
+        <div class="menu-screen" id="menuScreen">
+            <h1>🃏 Bridge Game</h1>
+            <p>Play bridge or watch AI compete!</p>
+            <div class="menu-buttons">
+                <button class="menu-btn" onclick="startGame('4ai')">
+                    🤖 4 AI Players (Watch)
+                </button>
+                <button class="menu-btn" onclick="startGame('3ai1human')">
+                    🧑‍🤝‍🤖 3 AI + 1 Human
+                </button>
+            </div>
+        </div>
+        
+        <!-- Game Screen -->
+        <div class="game-screen" id="gameScreen">
+            <!-- Game Table -->
+            <div class="game-table">
+                <div class="player-area north">
+                    <div class="player-name" id="northName">North</div>
+                    <div class="hand" id="northHand"></div>
+                </div>
+                
+                <div class="player-area east">
+                    <div class="player-name" id="eastName">East</div>
+                    <div class="hand" id="eastHand"></div>
+                </div>
+                
+                <div class="player-area south">
+                    <div class="player-name" id="southName">South</div>
+                    <div class="hand" id="southHand"></div>
+                </div>
+                
+                <div class="player-area west">
+                    <div class="player-name" id="westName">West</div>
+                    <div class="hand" id="westHand"></div>
+                </div>
+            </div>
+            
+            <!-- Info Panel -->
+            <div class="info-panel">
+                <h2>Game Info</h2>
+                
+                <div class="trick-score">
+                    <span>NS: <span id="nsTricks">0</span></span>
+                    <span>EW: <span id="ewTricks">0</span></span>
+                </div>
+                
+                <div id="biddingInfo">
+                    <h3>Bidding</h3>
+                    <div class="bidding-history" id="biddingHistory"></div>
+                </div>
+                
+                <div class="controls">
+                    <button class="action-btn" onclick="aiBid()" id="aiBidBtn">
+                        AI Bid
+                    </button>
+                    <button class="action-btn" onclick="goToMenu()">
+                        Main Menu
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Bidding Panel -->
+            <div class="bidding-panel" id="biddingPanel">
+                <h3>Your Turn to Bid</h3>
+                <div class="bidding-grid" id="biddingGrid"></div>
+                <div class="special-bids">
+                    <button class="bid-btn" onclick="makeBid('Pass')">Pass</button>
+                    <button class="bid-btn" onclick="makeBid('Double')">Double</button>
+                    <button class="bid-btn" onclick="makeBid('Redouble')">Redouble</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let gameState = null;
+        let humanPlayer = null;
+        
+        const playerNames = ['North', 'East', 'South', 'West'];
+        
+        async function startGame(mode) {
+            const response = await fetch('/api/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode: mode })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                document.getElementById('menuScreen').style.display = 'none';
+                document.getElementById('gameScreen').style.display = 'block';
+                humanPlayer = result.state.human_player;
+                
+                // Mark human player
+                if (humanPlayer !== null) {
+                    const players = ['northName', 'eastName', 'southName', 'westName'];
+                    document.getElementById(players[humanPlayer]).classList.add('human');
+                }
+                
+                updateGame(result.state);
+                
+                // If all AI, start auto-play
+                if (mode === '4ai') {
+                    autoPlay();
+                }
+            }
+        }
+        
+        async function updateGame(state) {
+            if (!state) return;
+            
+            // Update trick count
+            document.getElementById('nsTricks').textContent = state.tricks_ns;
+            document.getElementById('ewTricks').textContent = state.tricks_ew;
+            
+            // Update bidding
+            const biddingDiv = document.getElementById('biddingHistory');
+            biddingDiv.innerHTML = state.bidding.map(b => `<span class="bid">${b}</span>`).join('');
+            
+            // Highlight current player
+            ['northName', 'eastName', 'southName', 'westName'].forEach(id => {
+                document.getElementById(id).classList.remove('current');
+            });
+            document.getElementById(['northName', 'eastName', 'southName', 'westName'][state.current_player]).classList.add('current');
+            
+            // Update hands
+            updateHands(state.hands);
+            
+            // Check if human's turn
+            if (humanPlayer !== null && state.current_player === humanPlayer && state.phase === 'bidding') {
+                document.getElementById('aiBidBtn').style.display = 'none';
+                showBiddingPanel();
+            } else {
+                document.getElementById('aiBidBtn').style.display = 'inline-block';
+                document.getElementById('biddingPanel').style.display = 'none';
+            }
+        }
+        
+        function updateHands(hands) {
+            const playerAreas = ['northHand', 'eastHand', 'southHand', 'westHand'];
+            
+            playerAreas.forEach((handId, i) => {
+                const player = playerNames[i].toLowerCase();
+                const hand = hands[player] || [];
+                const handDiv = document.getElementById(handId);
+                
+                // Human player sees their own cards, others see backs
+                const isHuman = i === humanPlayer;
+                
+                handDiv.innerHTML = hand.map(card => {
+                    if (isHuman) {
+                        const isRed = card.includes('♥') || card.includes('♦');
+                        return `<div class="card ${isRed ? 'red' : 'black'}">${card}</div>`;
+                    } else {
+                        return `<div class="card card-back">?</div>`;
+                    }
+                }).join('');
+            });
+        }
+        
+        function showBiddingPanel() {
+            const panel = document.getElementById('biddingPanel');
+            panel.style.display = 'block';
+            
+            // Generate bidding options
+            const grid = document.getElementById('biddingGrid');
+            grid.innerHTML = '';
+            
+            const suits = ['C', 'D', 'H', 'S', 'NT'];
+            for (let level = 1; level <= 7; level++) {
+                suits.forEach((suit) => {
+                    const btn = document.createElement('button');
+                    btn.className = 'bid-btn';
+                    btn.textContent = `${level}${suit}`;
+                    btn.onclick = () => makeBid(`${level}${suit}`);
+                    grid.appendChild(btn);
+                });
+            }
+        }
+        
+        async function makeBid(bid) {
+            const response = await fetch('/api/bid', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ bid: bid })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                document.getElementById('biddingPanel').style.display = 'none';
+                updateGame(result.state);
+                autoPlay();
+            }
+        }
+        
+        async function aiBid() {
+            const response = await fetch('/api/ai_bid');
+            const result = await response.json();
+            
+            if (result.success) {
+                updateGame(result.state);
+            }
+        }
+        
+        async function autoPlay() {
+            while (true) {
+                await new Promise(r => setTimeout(r, 700));
+                
+                const stateResp = await fetch('/api/state');
+                const stateData = await stateResp.json();
+                
+                if (!stateData.state) break;
+                if (stateData.state.phase !== 'bidding') break;
+                
+                if (humanPlayer !== null && stateData.state.current_player === humanPlayer) {
+                    break;
+                }
+                
+                const response = await fetch('/api/ai_bid');
+                const result = await response.json();
+                
+                if (!result.success) break;
+                
+                updateGame(result.state);
+            }
+        }
+        
+        function goToMenu() {
+            document.getElementById('menuScreen').style.display = 'flex';
+            document.getElementById('gameScreen').style.display = 'none';
+            document.getElementById('biddingPanel').style.display = 'none';
+        }
+    </script>
+</body>
+</html>

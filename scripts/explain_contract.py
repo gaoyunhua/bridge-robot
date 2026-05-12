@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+"""
+解释 Contract 部分 (12-219) 的作用
+"""
+
+print("=" * 80)
+print("Contract 部分 (12-219) 的作用")
+print("=" * 80)
+print()
+
+print("Contract 部分在叫牌结束后编码最终的合约信息，用于：")
+print()
+print("1. 合约的级别 (level): 1-7")
+print("2. 花色 (denom): ♣, ♦, ♥, ♠, NT")
+print("3. 庄家 (declarer): N, E, S, W")
+print("4. 加倍状态 (doubled): 否, 加倍, 再加倍")
+print()
+
+print("=" * 80)
+print("编码结构:")
+print("=" * 80)
+print()
+
+print("区间 [12-219] 分为几个子区间:")
+print()
+
+print("  [12-18]: 级别 (Level)")
+print("    obs[12] = 1 → level 1")
+print("    obs[13] = 1 → level 2")
+print("    ...")
+print("    obs[18] = 1 → level 7")
+print()
+
+print("  [19-23]: 花色 (Denom)")
+print("    obs[19] = 1 → ♣ (Clubs)")
+print("    obs[20] = 1 → ♦ (Diamonds)")
+print("    obs[21] = 1 → ♥ (Hearts)")
+print("    obs[22] = 1 → ♠ (Spades)")
+print("    obs[23] = 1 → NT (无将)")
+print()
+
+print("  [24-27]: 庄家 (Declarer)")
+print("    obs[24] = 1 → North")
+print("    obs[25] = 1 → East")
+print("    obs[26] = 1 → South")
+print("    obs[27] = 1 → West")
+print()
+
+print("  [28]: 加倍状态 (Doubled)")
+print("    obs[28] = 0 → 无加倍")
+print("    obs[28] = 1 → 加倍")
+print("    obs[28] = 2 → 再加倍")
+print()
+
+print("=" * 80)
+print("使用场景:")
+print("=" * 80)
+print()
+print("1. 在叫牌阶段: 这个部分都是 0.0")
+print("   - 因为叫牌还没结束，合约还没确定")
+print()
+print("2. 在出牌阶段: 这个部分编码最终合约")
+print("   - 让模型知道需要赢多少墩牌")
+print("   - 让模型知道谁是庄家和明手")
+print("   - 让模型知道加倍情况")
+print()
+
+print("=" * 80)
+print("示例: 3♥ by North")
+print("=" * 80)
+print()
+print("  Level 3 → obs[14] = 1")
+print("  ♥     → obs[21] = 1")
+print("  North → obs[24] = 1")
+print("  无加倍 → obs[28] = 0")
+print()
+print("这样模型就知道需要赢 9 墩 (3 + 6) 的 ♥ 定约！")
