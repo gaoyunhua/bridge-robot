@@ -66,6 +66,9 @@ def load_data(data_file):
         return None
     
     data = []
+    skipped_count = 0
+    parse_error_count = 0
+    
     with open(data_file, "r", encoding="utf-8") as f:
         for line_num, line in enumerate(f):
             line = line.strip()
@@ -77,9 +80,16 @@ def load_data(data_file):
                 if isinstance(item, dict) and 'phase' in item:
                     data.append(item)
                 else:
-                    print(f"Skipping invalid line {line_num}: {type(item).__name__}")
+                    skipped_count += 1
+                    if skipped_count <= 5:  # 只打印前5个跳过警告
+                        print(f"Skipping invalid line {line_num}: {type(item).__name__}")
             except json.JSONDecodeError as e:
-                print(f"JSON parse error line {line_num}: {e}")
+                parse_error_count += 1
+                if parse_error_count <= 5:  # 只打印前5个解析错误
+                    print(f"JSON parse error line {line_num}: {e}")
+    
+    if skipped_count > 0 or parse_error_count > 0:
+        print(f"\nWarning: Skipped {skipped_count} invalid lines, {parse_error_count} parse errors")
     
     return data
 
