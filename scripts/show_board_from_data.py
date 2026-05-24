@@ -21,34 +21,60 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 sys.path.insert(0, os.path.join(project_root, 'src'))
 
-import endplay
-from endplay.types import Player, Bid, Contract, Card
+from endplay import Deal, Card
+from endplay.types import Player, Bid, Contract, Denom, Rank
+from config import EnvConfig, OFS_HANDS, NUM_PLAYERS
 
-from config import EnvConfig
+# 常量定义
+BID_NAMES = ['1C', '1D', '1H', '1S', '1NT', 
+              '2C', '2D', '2H', '2S', '2NT',
+              '3C', '3D', '3H', '3S', '3NT',
+              '4C', '4D', '4H', '4S', '4NT',
+              '5C', '5D', '5H', '5S', '5NT',
+              '6C', '6D', '6H', '6S', '6NT',
+              '7C', '7D', '7H', '7S', '7NT']
+
+SUITS = ['♣', '♦', '♥', '♠']
+SUIT_NAMES = ['C', 'D', 'H', 'S']
+RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A']
+PLAYER_NAMES = ['North', 'East', 'South', 'West']
+
+
+def decode_hands_from_obs(obs, current_player):
+    """从 observation 中解码手牌"""
+    hands = {Player.north: [], Player.east: [], Player.south: [], Player.west: []}
+    
+    for pl in [Player.north, Player.east, Player.south, Player.west]:
+        hand_offset = OFS_HANDS + pl.value * 52
+        for card_idx in range(52):
+            if obs[hand_offset + card_idx] > 0.5:
+                suit = card_idx // 13
+                rank = card_idx % 13
+                card = Card(Rank[rank], Denom[suit])
+                hands[pl].append(card)
+    
+    return hands
 
 
 def action_to_bid_name(action):
     """将动作转换为叫牌名称"""
-    if action < 35:
-        level = action // 5 + 1
-        denom = ['C', 'D', 'H', 'S', 'NT'][action % 5]
-        return f"{level}{denom}"
+    if 0 <= action < 35:
+        return BID_NAMES[action]
     elif action == 35:
         return "Pass"
     elif action == 36:
         return "X"
-    else:
+    elif action == 37:
         return "XX"
+    return f"Unknown({action})"
 
 
 def card_action_to_name(action):
     """将出牌动作转换为牌张名称"""
-    if action < 52:
-        suits = ['C', 'D', 'H', 'S']
-        ranks = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A']
-        suit_idx = action // 13
-        rank_idx = action % 13
-        return f"{ranks[rank_idx]}{suits[suit_idx]}"
+    if 0 <= action < 52:
+        suit = action // 13
+        rank = action % 13
+        return f"{RANKS[rank]}{SUITS[suit]}"
     return f"Action{action}"
 
 
@@ -71,7 +97,7 @@ def load_data(data_file):
     return data
 
 
-def display_board_endplay(data, index, total):
+def display_board_with_endplay(data, index, total):
     """使用 endplay 显示单个 board"""
     os.system('cls' if os.name == 'nt' else 'clear')
     
@@ -79,23 +105,56 @@ def display_board_endplay(data, index, total):
     board_idx = board.get('board_idx', index + 1)
     player_idx = board.get('player_idx', 0)
     phase = board.get('phase', 'unknown')
+    obs = board.get('obs', [])
     
-    # 使用 endplay 打印标题
+    # 解码手牌
+    try:
+        hands = decode_hands_from_obs(obs, player_idx)
+    except:
+        hands = None
+    
+    # 使用 endplay 显示标题
     print("=" * 80)
     print(f"  Bridge Board {board_idx} [{index + 1}/{total}] - {phase.upper()} Phase")
     print("=" * 80)
     print()
     
     # 显示当前玩家信息
-    player_names = ['North', 'East', 'South', 'West']
-    print(f"  Current Player: {player_names[player_idx]}")
+    print(f"  Current Player: {PLAYER_NAMES[player_idx]}")
     print()
     
-    # 获取叫牌历史
+    # 显示手牌 (使用 endplay 格式化)
+    if hands:
+        print("-" * 80)
+        print("  PLAYER HANDS")
+        print("-" * 80)
+        print()
+        
+        for pl in [Player.north, Player.east, Player.south, Player.west]:
+            hand = hands[pl]
+            if hand:
+                # 按花色分组
+                clubs = [c for c in hand if c.denom == Denom.clubs]
+                diamonds = [c for c in hand if c.denom == Denom.diamonds]
+                hearts = [c for c in hand if c.denom == Denom.hearts]
+                spades = [c for c in hand if c.denom == Denom.spades]
+                
+                hand_str = ""
+                if clubs: hand_str += f"  {SUITS[0]}: {''.join(str(c.rank)[0] for c in sorted(clubs))}"
+                if diamonds: hand_str += f"  {SUITS[1]}: {''.join(str(c.rank)[0] for c in sorted(diamonds))}"
+                if hearts: hand_str += f"  {SUITS[2]}: {''.join(str(c.rank)[0] for c in sorted(hearts))}"
+                if spades: hand_str += f"  {SUITS[3]}: {''.join(str(c.rank)[0] for c in sorted(spades))}"
+                
+                marker = " ←" if pl.value == player_idx else ""
+                print(f"  {pl.name:>5}:{hand_str}{marker}")
+        print()
+    
+    # 获取动作信息
     legal_actions = board.get('legal_actions', [])
     model_act = board.get('model_act', 0)
     optimal_act = board.get('optimal_act', 0)
     action_values = board.get('action_values', [])
+    action_losses = board.get('action_losses', [])
     
     if phase == 'bidding':
         # 显示叫牌相关信息
@@ -120,12 +179,12 @@ def display_board_endplay(data, index, total):
         print("-" * 80)
         print()
         
-        # 显示模型选择
+        # 显示模型选择和最优动作
         model_name = action_to_bid_name(model_act)
         optimal_name = action_to_bid_name(optimal_act)
         
         print(f"  Model Action:    {model_name}")
-        print(f"  Optimal Action:  {optimal_name}")
+        print(f"  Optimal Action: {optimal_name}")
         
         if model_act == optimal_act:
             print("  ✓ Model matches optimal!")
@@ -138,10 +197,10 @@ def display_board_endplay(data, index, total):
         
         print()
         
-        # 显示动作值
+        # 显示动作值柱状图
         if action_values:
             print("-" * 80)
-            print("  ACTION VALUES")
+            print("  ACTION VALUES (DDS Evaluated)")
             print("-" * 80)
             print()
             
@@ -152,7 +211,8 @@ def display_board_endplay(data, index, total):
             if positive_vals:
                 print("  Positive Value Bids:")
                 for name, val in positive_vals:
-                    bar = "█" * min(int(val / 2), 40)
+                    bar_len = min(int(val / 2), 40)
+                    bar = "█" * bar_len
                     print(f"    {name:>6}: {bar} {val:>6.2f}")
             print()
     
@@ -163,23 +223,20 @@ def display_board_endplay(data, index, total):
         print("-" * 80)
         print()
         
-        # 显示合法出牌
+        # 显示合法出牌 (使用 endplay 牌张格式)
         print(f"  Legal Actions ({len(legal_actions)} cards):")
+        print()
         
         # 按花色分组显示
-        suits = ['♣', '♦', '♥', '♠']
-        suit_names = ['Clubs', 'Diamonds', 'Hearts', 'Spades']
-        
-        for suit_idx in range(4):
+        for suit_idx, suit_name in enumerate(SUIT_NAMES):
             cards_in_suit = []
             for act in legal_actions:
                 if act // 13 == suit_idx:
                     rank_idx = act % 13
-                    rank = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A'][rank_idx]
-                    cards_in_suit.append(f"{rank}{suits[suit_idx]}")
+                    cards_in_suit.append(f"{RANKS[rank_idx]:>2}")
             
             if cards_in_suit:
-                print(f"    {suit_names[suit_idx]:>10}: " + " ".join(f"{c:>3}" for c in cards_in_suit))
+                print(f"    {SUITS[suit_idx]} ({suit_name:>7}): " + " ".join(cards_in_suit))
         
         print()
         print("-" * 80)
@@ -190,7 +247,7 @@ def display_board_endplay(data, index, total):
         optimal_name = card_action_to_name(optimal_act)
         
         print(f"  Model Card:    {model_name}")
-        print(f"  Optimal Card:  {optimal_name}")
+        print(f"  Optimal Card: {optimal_name}")
         
         if model_act == optimal_act:
             print("  ✓ Model matches optimal!")
@@ -199,25 +256,24 @@ def display_board_endplay(data, index, total):
         
         print()
     
-    # 显示动作损失
-    action_losses = board.get('action_losses', [])
+    # 显示损失分析
     if action_losses:
         print("-" * 80)
         print("  LOSS ANALYSIS")
         print("-" * 80)
         print()
         
-        # 找到损失最小的动作
-        if phase == 'bidding':
+        try:
             min_loss_idx = action_losses.index(min(action_losses)) if action_losses else 0
             if min_loss_idx < len(legal_actions):
-                best_action = action_to_bid_name(legal_actions[min_loss_idx])
-                print(f"  Best Bid (lowest loss): {best_action} (loss={action_losses[min_loss_idx]:.4f})")
-        elif phase == 'play':
-            min_loss_idx = action_losses.index(min(action_losses)) if action_losses else 0
-            if min_loss_idx < len(legal_actions):
-                best_card = card_action_to_name(legal_actions[min_loss_idx])
-                print(f"  Best Card (lowest loss): {best_card} (loss={action_losses[min_loss_idx]:.4f})")
+                if phase == 'bidding':
+                    best_action = action_to_bid_name(legal_actions[min_loss_idx])
+                    print(f"  Best Bid (lowest loss): {best_action} (loss={action_losses[min_loss_idx]:.4f})")
+                else:
+                    best_card = card_action_to_name(legal_actions[min_loss_idx])
+                    print(f"  Best Card (lowest loss): {best_card} (loss={action_losses[min_loss_idx]:.4f})")
+        except:
+            pass
         
         print()
     
@@ -269,7 +325,7 @@ Examples:
     
     # 显示第一个 board
     current_index = 0
-    display_board_endplay(data, current_index, len(data))
+    display_board_with_endplay(data, current_index, len(data))
     
     # 导航循环
     try:
@@ -280,21 +336,23 @@ Examples:
                 break
             elif key == 'PAGE_UP':
                 current_index = (current_index - 1) % len(data)
-                display_board_endplay(data, current_index, len(data))
+                display_board_with_endplay(data, current_index, len(data))
             elif key == 'PAGE_DOWN':
                 current_index = (current_index + 1) % len(data)
-                display_board_endplay(data, current_index, len(data))
+                display_board_with_endplay(data, current_index, len(data))
             elif key == 'HOME':
                 current_index = 0
-                display_board_endplay(data, current_index, len(data))
+                display_board_with_endplay(data, current_index, len(data))
             elif key == 'END':
                 current_index = len(data) - 1
-                display_board_endplay(data, current_index, len(data))
+                display_board_with_endplay(data, current_index, len(data))
     
     except KeyboardInterrupt:
         pass
     except Exception as e:
         print(f"\nError: {e}")
+        import traceback
+        traceback.print_exc()
     
     print("\n  Exiting...")
 
