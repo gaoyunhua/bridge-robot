@@ -59,22 +59,94 @@ def card_action_to_name(action):
         return f"{RANKS[rank]}{SUITS[suit]}"
     return f"Action{action}"
 
+def decode_hands_from_obs(obs):
+    """从 observation 中解码手牌"""
+    hands = {Player.north: [], Player.east: [], Player.south: [], Player.west: []}
+    
+    if not isinstance(obs, list):
+        return hands
+    
+    obs_len = len(obs)
+    for pl in [Player.north, Player.east, Player.south, Player.west]:
+        hand_offset = OFS_HANDS + pl.value * 52
+        
+        if hand_offset + 52 > obs_len:
+            continue
+            
+        for card_idx in range(52):
+            idx = hand_offset + card_idx
+            if idx >= obs_len:
+                break
+                
+            if obs[idx] > 0.5:
+                try:
+                    suit = card_idx // 13
+                    rank = card_idx % 13
+                    card = Card(Rank[rank], Denom[suit])
+                    hands[pl].append(card)
+                except:
+                    pass
+    
+    return hands
+
+def get_bidding_history(data, current_index):
+    """获取当前步骤之前的叫牌历史"""
+    history = []
+    board_idx = None
+    
+    # 从当前步骤向前查找同一board的叫牌记录
+    for i in range(current_index, -1, -1):
+        item = data[i]
+        current_board_idx = item.get('board_idx', i)
+        
+        if board_idx is None:
+            board_idx = current_board_idx
+        elif current_board_idx != board_idx:
+            break
+        
+        if item.get('phase') == 'bidding':
+            player_idx = item.get('player_idx', 0)
+            model_act = item.get('model_act', 0)
+            act_name = action_to_bid_name(model_act)
+            history.insert(0, (PLAYER_NAMES[player_idx], act_name))
+    
+    return history
+
+def get_play_history(data, current_index):
+    """获取当前步骤之前的打牌历史"""
+    history = []
+    board_idx = None
+    
+    for i in range(current_index, -1, -1):
+        item = data[i]
+        current_board_idx = item.get('board_idx', i)
+        
+        if board_idx is None:
+            board_idx = current_board_idx
+        elif current_board_idx != board_idx:
+            break
+        
+        if item.get('phase') == 'play':
+            player_idx = item.get('player_idx', 0)
+            model_act = item.get('model_act', 0)
+            act_name = card_action_to_name(model_act)
+            history.insert(0, (PLAYER_NAMES[player_idx], act_name))
+    
+    return history
+
 def load_data(data_file):
     """加载数据文件（支持JSON和JSONL格式）"""
     if not os.path.exists(data_file):
         print(f"Error: {data_file} not found!")
         return None
     
-    # 首先检查文件格式
     with open(data_file, "r", encoding="utf-8") as f:
         first_char = f.read(1)
         f.seek(0)
         
         if first_char == '{' or first_char == '[':
-            # 可能是JSON格式（包含data数组）
             try:
                 full_data = json.load(f)
-                # 检查是否是包含data数组的格式
                 if isinstance(full_data, dict) and 'data' in full_data:
                     print(f"  Detected JSON format with {len(full_data['data'])} entries")
                     return full_data['data']
@@ -85,7 +157,6 @@ def load_data(data_file):
                 print(f"  Failed to parse as JSON: {e}")
                 print(f"  Falling back to JSONL format...")
         
-        # JSONL格式（每行一个JSON对象）
         data = []
         skipped_count = 0
         parse_error_count = 0
@@ -101,11 +172,11 @@ def load_data(data_file):
                     data.append(item)
                 else:
                     skipped_count += 1
-                    if skipped_count <= 5:  # 只打印前5个跳过警告
+                    if skipped_count <= 5:
                         print(f"Skipping invalid line {line_num}: {type(item).__name__}")
             except json.JSONDecodeError as e:
                 parse_error_count += 1
-                if parse_error_count <= 5:  # 只打印前5个解析错误
+                if parse_error_count <= 5:
                     print(f"JSON parse error line {line_num}: {e}")
         
         if skipped_count > 0 or parse_error_count > 0:
@@ -117,7 +188,6 @@ def display_board_with_endplay(data, index, total):
     """使用 endplay 显示单个 board"""
     os.system('cls' if os.name == 'nt' else 'clear')
     
-    # 安全检查
     if index < 0 or index >= len(data):
         print(f"Error: index {index} out of range (0-{len(data)-1})")
         return
@@ -130,8 +200,16 @@ def display_board_with_endplay(data, index, total):
     board_idx = board.get('board_idx', index + 1)
     player_idx = board.get('player_idx', 0)
     phase = board.get('phase', 'unknown')
+    obs = board.get('obs', [])
     
-    # 使用 endplay 显示标题
+    # 解码手牌
+    hands = decode_hands_from_obs(obs)
+    
+    # 获取历史记录
+    bidding_history = get_bidding_history(data, index)
+    play_history = get_play_history(data, index)
+    
+    # 显示标题
     print("=" * 80)
     print(f"  Bridge Board {board_idx} [{index + 1}/{total}] - {phase.upper()} Phase")
     print("=" * 80)
@@ -140,6 +218,51 @@ def display_board_with_endplay(data, index, total):
     # 显示当前玩家信息
     print(f"  Current Player: {PLAYER_NAMES[player_idx]}")
     print()
+    
+    # 显示手牌
+    print("-" * 80)
+    print("  PLAYER HANDS")
+    print("-" * 80)
+    print()
+    
+    for pl in [Player.north, Player.east, Player.south, Player.west]:
+        hand = hands[pl]
+        if hand:
+            clubs = [c for c in hand if c.denom == Denom.clubs]
+            diamonds = [c for c in hand if c.denom == Denom.diamonds]
+            hearts = [c for c in hand if c.denom == Denom.hearts]
+            spades = [c for c in hand if c.denom == Denom.spades]
+            
+            hand_str = ""
+            if clubs: hand_str += f"  {SUITS[0]}: {''.join(str(c.rank)[0] for c in sorted(clubs))}"
+            if diamonds: hand_str += f"  {SUITS[1]}: {''.join(str(c.rank)[0] for c in sorted(diamonds))}"
+            if hearts: hand_str += f"  {SUITS[2]}: {''.join(str(c.rank)[0] for c in sorted(hearts))}"
+            if spades: hand_str += f"  {SUITS[3]}: {''.join(str(c.rank)[0] for c in sorted(spades))}"
+            
+            marker = " ←" if pl.value == player_idx else ""
+            print(f"  {pl.name:>5}:{hand_str}{marker}")
+    print()
+    
+    # 显示历史记录
+    if bidding_history:
+        print("-" * 80)
+        print("  BIDDING HISTORY")
+        print("-" * 80)
+        print()
+        history_str = " → ".join(f"{p}: {b}" for p, b in bidding_history)
+        print(f"  {history_str}")
+        print()
+    
+    if play_history:
+        print("-" * 80)
+        print("  PLAY HISTORY")
+        print("-" * 80)
+        print()
+        for i in range(0, len(play_history), 4):
+            trick = play_history[i:i+4]
+            trick_str = " | ".join(f"{p}: {c}" for p, c in trick)
+            print(f"  Trick {i//4 + 1}: {trick_str}")
+        print()
     
     # 获取动作信息
     legal_actions = board.get('legal_actions', [])
@@ -297,7 +420,6 @@ Examples:
     print()
     print(f"  Loading data from: {args.data_file}")
     
-    # 加载数据
     data = load_data(args.data_file)
     if data is None:
         sys.exit(1)
@@ -307,7 +429,6 @@ Examples:
         print("  No data found!")
         sys.exit(1)
     
-    # 调试信息
     print(f"  Data type: {type(data)}")
     if data:
         print(f"  First item type: {type(data[0])}")
@@ -319,7 +440,6 @@ Examples:
     except (EOFError, KeyboardInterrupt):
         pass
     
-    # 显示第一个 board
     current_index = 0
     try:
         display_board_with_endplay(data, current_index, len(data))
@@ -329,7 +449,6 @@ Examples:
         traceback.print_exc()
         return
     
-    # 导航循环
     try:
         while True:
             key = get_key()
