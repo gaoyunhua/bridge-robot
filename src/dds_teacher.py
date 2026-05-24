@@ -352,7 +352,7 @@ class BidTeacher:
                 first_bid_player = p
 
         if last_bid_player is not None:
-            is_ns = last_bid_player.value % 2 == 0
+            is_ns = player.value % 2 == 0     # 当前叫牌方的阵营，非最后定约方的阵营
         else:
             is_ns = dealer.value % 2 == 0
 
@@ -376,18 +376,16 @@ class BidTeacher:
         if last_level == 0:
             scored_contracts = []
             for denom_idx, denom in enumerate(BID_DENOMS):
-                tricks, score = calculate_contract_score(deal, 1, denom, bidding_side, vul, 0)
+                tricks = dd_table.tricks(denom, bidding_side)
                 for level in range(1, 8):
                     if tricks >= level + 6:
                         action = LEVEL_DENOM_TO_ACTION.get((level, denom))
                         if action is not None:
-                            _, score = calculate_contract_score(deal, level, denom, bidding_side, vul, 0)
-                            if not is_ns:
-                                score = -score
+                            score = contract_score(level, denom, 0, vul, tricks)
                             scored_contracts.append((level, denom_idx, action, tricks, score))
             if scored_contracts:
-                # Sort by score descending, then level descending (higher level better when scores equal)
-                scored_contracts.sort(key=lambda x: (-x[4], -x[0]))  # (-score, -level)
+                # Sort by score descending, then level ascending (低阶优先)
+                scored_contracts.sort(key=lambda x: (-x[4], x[0]))
                 return scored_contracts[0][2]  # Return highest scoring action
             return _PASS
 
@@ -409,13 +407,11 @@ class BidTeacher:
         scored_candidates = []
         for level, denom_idx, action, tricks in candidates:
             denom = BID_DENOMS[denom_idx]
-            _, score = calculate_contract_score(deal, level, denom, bidding_side, vul, 0)
-            if not is_ns:
-                score = -score  # EW perspective
+            score = contract_score(level, denom, 0, vul, tricks)
             scored_candidates.append((level, denom_idx, action, tricks, score))
 
-        # Sort by score descending (most profitable first), then level descending
-        scored_candidates.sort(key=lambda x: (-x[4], -x[0]))
+        # Sort by score descending (most profitable first), then level ascending (低阶优先)
+        scored_candidates.sort(key=lambda x: (-x[4], x[0]))
 
         # Return the most profitable makeable contract
         if scored_candidates:
@@ -467,7 +463,7 @@ class BidTeacher:
                 first_bid_player = p
 
         if last_bid_player is not None:
-            is_ns = last_bid_player.value % 2 == 0
+            is_ns = player.value % 2 == 0     # 当前叫牌方的阵营
         else:
             is_ns = dealer.value % 2 == 0
 
@@ -476,15 +472,13 @@ class BidTeacher:
         all_makeable = []
         all_tricks_by_denom = {}
         for denom_idx, denom in enumerate(BID_DENOMS):
-            tricks, score = calculate_contract_score(deal, 1, denom, bidding_side, vul, 0)
+            tricks = dd_table.tricks(denom, bidding_side)
             all_tricks_by_denom[denom] = tricks
             for level in range(1, 8):
                 if tricks >= level + 6:
                     action = LEVEL_DENOM_TO_ACTION[(level, denom)]
-                    _, score = calculate_contract_score(deal, level, denom, bidding_side, vul, 0)
-                    if not is_ns:
-                        score = -score
-                    all_makeable.append((level, denom_idx, denom, action, tricks, score))
+                    score_val = contract_score(level, denom, 0, vul, tricks)
+                    all_makeable.append((level, denom_idx, denom, action, tricks, score_val))
 
         if not all_makeable:
             # 没有更优的叫牌，说明当前合约已经是最优的
@@ -500,8 +494,6 @@ class BidTeacher:
                     denom_idx = act % 5
                     denom = BID_DENOMS[denom_idx]
                     _, score = calculate_contract_score(deal, level, denom, bidding_side, vul, 0)
-                    if not is_ns:
-                        score = -score
                     all_possible_scores.append(score)
 
             max_score = max(abs(s) for s in all_possible_scores) if all_possible_scores else 1.0
@@ -546,18 +538,18 @@ class BidTeacher:
                     level = act // 5 + 1
                     denom_idx = act % 5
                     denom = BID_DENOMS[denom_idx]
-                    tricks, score = calculate_contract_score(deal, level, denom, bidding_side, vul, 0)
+                    tricks = dd_table.tricks(denom, bidding_side)
+                    score_val = contract_score(level, denom, 0, vul, tricks)
                     needed = level + 6
-
-                    if not is_ns:
-                        score = -score
 
                     # 对超叫（会宕）施加额外惩罚
                     if tricks < needed:
                         down_count = needed - tricks
-                        score = score - down_count * 50
+                        score_val = score_val - down_count * 50
 
-                    value = score / max_score * 10
+                    value = score_val / max_score * 10
+                    # 同分时低阶优先
+                    value = value - level * 0.5
                     # Clip value to prevent overflow in softmax
                     value = max(min(value, 20.0), -20.0)
                     action_values.append(value)
@@ -576,12 +568,10 @@ class BidTeacher:
                 level = act // 5 + 1
                 denom_idx = act % 5
                 denom = BID_DENOMS[denom_idx]
-                tricks, score = calculate_contract_score(deal, level, denom, bidding_side, vul, 0)
+                tricks = dd_table.tricks(denom, bidding_side)
+                score_val = contract_score(level, denom, 0, vul, tricks)
                 needed = level + 6
-                bidding_side = 0 if is_ns else 1
-                if bidding_side == 1:
-                    score = -score
-                all_legal_scores.append((idx, score, tricks, needed))
+                all_legal_scores.append((idx, score_val, tricks, needed))
 
         # 找出能完成的叫牌的最低分作为基准
         normal_scores = [s for (_, s, t, n) in all_legal_scores if t >= n]
@@ -611,7 +601,8 @@ class BidTeacher:
         
         if last_level > 0:
             denom = BID_DENOMS[last_denom_idx]
-            actual_tricks, declarer_score = calculate_contract_score(deal, last_level, denom, declarer, vul, 0)
+            actual_tricks = dd_table.tricks(denom, declarer)
+            declarer_score = contract_score(last_level, denom, 0, vul, actual_tricks)
             # declarer_score > 0 表示庄家得分（正分），< 0 表示防守方得分
             # 如果玩家和庄家同侧，player_par = declarer_score
             # 如果玩家和庄家不同侧，player_par = -declarer_score
@@ -642,21 +633,24 @@ class BidTeacher:
             # ============================================
             if act == _PASS:
                 value = self._compute_pass_value(last_level, last_denom_idx, is_declarer_side, 
-                                                deal, declarer, vul, max_score)
+                                                deal, declarer, vul, max_score,
+                                                dd_table=dd_table)
                 action_values.append(value)
                 action_tricks.append(0)
                 continue
                 
             if act == _DOUBLE:
                 value = self._compute_double_value(last_level, last_denom_idx, is_declarer_side, 
-                                                  deal, current_denom, declarer, vul, max_score, doubled=1)
+                                                  deal, current_denom, declarer, vul, max_score, doubled=1,
+                                                  dd_table=dd_table)
                 action_values.append(value)
                 action_tricks.append(0)
                 continue
                 
             if act == _REDOUBLE:
                 value = self._compute_redouble_value(last_level, last_denom_idx, is_declarer_side, 
-                                                   deal, current_denom, declarer, vul, max_score, doubled=2)
+                                                   deal, current_denom, declarer, vul, max_score, doubled=2,
+                                                   dd_table=dd_table)
                 action_values.append(value)
                 action_tricks.append(0)
                 continue
@@ -681,17 +675,16 @@ class BidTeacher:
                 continue
 
             denom = BID_DENOMS[denom_idx]
-            actual_tricks, score = calculate_contract_score(deal, level, denom, bidding_side, vul, 0)
+            actual_tricks = dd_table.tricks(denom, bidding_side)
+            score_val = contract_score(level, denom, 0, vul, actual_tricks)
             needed = level + 6
 
             # 防守方竞叫时，bidding_side 应该从防守方视角计算
-            # bidding_side: 0=NS 庄家, 1=EW 庄家
-            bidding_side_player = Player.north if is_ns else Player.east
-            if bidding_side == 1:
-                score = -score  # 从防守方视角，EW 得分为正
 
             # 归一化
-            value = score / max_score * 10
+            value = score_val / max_score * 10
+            # 同分时低阶优先（每阶减0.5，鼓励低阶）
+            value = value - level * 0.5
 
             # 二三法则超叫惩罚：如果能拿到的墩数 < level + 2 (二法则)，则为超叫
             safe_tricks = level + 2
@@ -708,7 +701,7 @@ class BidTeacher:
         return action_values, action_tricks
     
     def _compute_pass_value(self, last_level, last_denom_idx, is_declarer_side, 
-                           deal, declarer, vul, max_score):
+                           deal, declarer, vul, max_score, dd_table=None):
         """Compute value for Pass action.
         
         Pass = 接受当前定约
@@ -717,7 +710,11 @@ class BidTeacher:
         """
         if last_level > 0:
             denom = BID_DENOMS[last_denom_idx]
-            actual_tricks, declarer_score = calculate_contract_score(deal, last_level, denom, declarer, vul, 0)
+            if dd_table is not None:
+                actual_tricks = dd_table.tricks(denom, declarer)
+                declarer_score = contract_score(last_level, denom, 0, vul, actual_tricks)
+            else:
+                actual_tricks, declarer_score = calculate_contract_score(deal, last_level, denom, declarer, vul, 0)
             needed = last_level + 6
             
             if not is_declarer_side:
@@ -735,11 +732,15 @@ class BidTeacher:
         return max(min(value, 20.0), -20.0)
     
     def _compute_double_value(self, last_level, last_denom_idx, is_declarer_side, 
-                             deal, denom, declarer, vul, max_score, doubled=1):
+                             deal, denom, declarer, vul, max_score, doubled=1, dd_table=None):
         """Compute value for Double action using calculate_contract_score."""
         if last_level > 0 and denom is not None:
             denom = BID_DENOMS[last_denom_idx]
-            actual_tricks, double_score = calculate_contract_score(deal, last_level, denom, declarer, vul, doubled=doubled)
+            if dd_table is not None:
+                actual_tricks = dd_table.tricks(denom, declarer)
+                double_score = contract_score(last_level, denom, doubled, vul, actual_tricks)
+            else:
+                actual_tricks, double_score = calculate_contract_score(deal, last_level, denom, declarer, vul, doubled=doubled)
             needed = last_level + 6
             
             if not is_declarer_side:
@@ -760,11 +761,15 @@ class BidTeacher:
         return max(min(value, 20.0), -20.0)
     
     def _compute_redouble_value(self, last_level, last_denom_idx, is_declarer_side, 
-                             deal, denom, declarer, vul, max_score, doubled=2):
+                             deal, denom, declarer, vul, max_score, doubled=2, dd_table=None):
         """Compute value for Redouble action using calculate_contract_score."""
         if last_level > 0 and denom is not None:
             denom = BID_DENOMS[last_denom_idx]
-            actual_tricks, redouble_score = calculate_contract_score(deal, last_level, denom, declarer, vul, doubled=doubled)
+            if dd_table is not None:
+                actual_tricks = dd_table.tricks(denom, declarer)
+                redouble_score = contract_score(last_level, denom, doubled, vul, actual_tricks)
+            else:
+                actual_tricks, redouble_score = calculate_contract_score(deal, last_level, denom, declarer, vul, doubled=doubled)
             needed = last_level + 6
             
             if not is_declarer_side:

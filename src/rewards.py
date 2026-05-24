@@ -124,7 +124,8 @@ def contract_score(level: int, denom: Denom, doubled: int,
 
 
 def calculate_contract_score(deal: Deal, level: int, denom: Denom, 
-                             declarer: Player, vul: Vul, doubled: int = 0) -> Tuple[int, int]:
+                             declarer: Player, vul: Vul, doubled: int = 0,
+                             dd_table_cache = None) -> Tuple[int, int]:
     """
     Calculate contract score using DDS to determine the number of tricks won.
 
@@ -135,13 +136,17 @@ def calculate_contract_score(deal: Deal, level: int, denom: Denom,
         declarer: declarer player
         vul: vulnerability
         doubled: 0=undoubled, 1=doubled, 2=redoubled (default: 0)
+        dd_table_cache: Optional DDTableCache. If provided, avoids recomputing the DDS table.
 
     Returns:
         (tricks_won, score) - number of tricks declarer can win double-dummy,
                               and the resulting score (positive = declarer scores)
     """
-    table = compute_dd_table_array(deal)
-    tricks_won = trick_count(table, denom, declarer)
+    if dd_table_cache is not None:
+        tricks_won = dd_table_cache.tricks(denom, declarer)
+    else:
+        table = compute_dd_table_array(deal)
+        tricks_won = trick_count(table, denom, declarer)
     score = contract_score(level, denom, doubled, vul, tricks_won)
     return tricks_won, score
 

@@ -58,9 +58,12 @@ class StepwiseBridgeDataGenerator:
             print("Bidding History: ", end="", flush=True)
         
         bidding_sequence = []
+        max_bid_steps = 65  # 防止无限制竞叫循环（最多65步）
+        bid_step_count = 0
         
         # 叫牌阶段
-        while not self.env.done and self.env.phase == 'bidding':
+        while not self.env.done and self.env.phase == 'bidding' and bid_step_count < max_bid_steps:
+            bid_step_count += 1
             if verbose:
                 print(".", end="", flush=True)
             step_data = process_bidding_step(
@@ -97,9 +100,12 @@ class StepwiseBridgeDataGenerator:
             
             bidding_sequence.append(bid_str)
             
-            # 模型动作优先（如果合法）
+            # 模型合法动作优先推进环境（加倍/再加倍不推进，只作为训练信号）
             model_act_is_legal = step_data['model_act'] in step_data['legal_actions_int']
-            advance_act = step_data['model_act'] if model_act_is_legal else step_data['optimal_act']
+            if model_act_is_legal and step_data['model_act'] not in (36, 37):
+                advance_act = step_data['model_act']
+            else:
+                advance_act = step_data['optimal_act']
             with torch.no_grad():
                 self.env.step(advance_act)
             obs_orig = self.env._encode_obs()
@@ -171,7 +177,7 @@ class StepwiseBridgeDataGenerator:
                 if verbose and len(play_cards) % 4 == 0:
                     print(f"  Trick {len(play_cards)//4}: {' '.join(play_cards[-4:])}")
                 
-                # 模型动作优先（如果合法）
+                # 模型合法动作优先推进出牌环境
                 model_act_is_legal = step_data['model_act'] in step_data['legal_actions_int']
                 advance_act = step_data['model_act'] if model_act_is_legal else step_data['optimal_act']
                 with torch.no_grad():

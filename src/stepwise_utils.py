@@ -236,6 +236,13 @@ def pick_action_from_middle_low_third(legal_actions: list, bid_values: list, his
     从 legal_actions 中选择动作，优先叫低，有正分叫牌不 Pass
     DDS 的 bid_values 已经考虑了所有因素（包括对方已叫花色），直接信任 DDS 分数
 
+    bid_values 来自 compute_bid_values():
+    - 合约叫品(0-34): 正分=能做成，负分=会宕
+    - Double(36): _compute_double_value() 已处理定约方判断
+      - 防守方+对方宕→正分，防守方+对方做成→负分
+      - 庄家方→低分
+    - Redouble(37): 同上
+
     :param legal_actions: 合法动作列表
     :param bid_values: 对应动作的 bid_value 列表（DDS 计算）
     :param history: 叫牌历史 [(player, action), ...]，用于参考
@@ -244,24 +251,28 @@ def pick_action_from_middle_low_third(legal_actions: list, bid_values: list, his
     if len(legal_actions) == 0:
         return 35  # 默认 PASS
 
+    # 1) 优先考虑合约叫品 (0-34)：能叫自己的定约就不加倍
     positive_bids = [(act, val) for act, val in zip(legal_actions, bid_values) if act < 35 and val > 0]
 
-    if not positive_bids:
-        return 35
+    if positive_bids:
+        def get_bid_level(action):
+            return action // 5 + 1
+        min_level = min(get_bid_level(act) for act, _ in positive_bids)
+        lowest_level_bids = [(act, val) for act, val in positive_bids if get_bid_level(act) == min_level]
+        selected = max(lowest_level_bids, key=lambda x: x[1])
+        return selected[0]
 
-    def get_bid_level(action):
-        return action // 5 + 1
+    # 2) 没有能叫的定约 → 检查 Double/Redouble
+    # _compute_double_value 已正确处理定约方:
+    #   防守方+对方宕→正分 👍 防守方+对方做成→负分 👎
+    #   庄家方→低分（加倍自己没意义）
+    for act, val in zip(legal_actions, bid_values):
+        if act == 36 and val > 0:
+            return 36  # Double — 对方这个定约要宕，加倍！
+        if act == 37 and val > 0:
+            return 37  # Redouble — 再加倍有利可图
 
-    # 找到最低阶的正分叫牌
-    min_level = min(get_bid_level(act) for act, _ in positive_bids)
-
-    # 获取该阶数中所有正分叫牌
-    lowest_level_bids = [(act, val) for act, val in positive_bids if get_bid_level(act) == min_level]
-
-    # 选择该阶数中价值最高的
-    selected = max(lowest_level_bids, key=lambda x: x[1])
-
-    return selected[0]
+    return 35  # 什么都没有 → Pass
 
 
 def process_bidding_step(env, model, teacher, dd_table, deal, vul, dealer, obs_orig, device):
