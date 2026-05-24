@@ -508,10 +508,12 @@ def get_key():
         old_settings = termios.tcgetattr(fd)
         try:
             tty.setraw(fd)
-            if select.select([sys.stdin], [], [], 0.1)[0]:
+            # 使用更长的超时时间，避免频繁轮询
+            if select.select([sys.stdin], [], [], 1.0)[0]:
                 key = sys.stdin.read(1)
                 if key == '\x1b':
-                    if select.select([sys.stdin], [], [], 0.1)[0]:
+                    # ESC 键只有在单独按下时才返回，否则等待更多字符
+                    if select.select([sys.stdin], [], [], 0.05)[0]:
                         key += sys.stdin.read(2)
                         if key == '\x1b[5~':
                             return 'PAGE_UP'
@@ -521,8 +523,17 @@ def get_key():
                             return 'HOME'
                         elif key == '\x1b[F':
                             return 'END'
+                        elif key == '\x1b[A':
+                            return 'UP'
+                        elif key == '\x1b[B':
+                            return 'DOWN'
+                        # 其他 ESC 序列，忽略
+                        return ''
+                    # 单独的 ESC 键，返回用于退出
                     return 'ESC'
                 return key
+            # 没有按键，返回空字符串
+            return ''
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
     except ImportError:
