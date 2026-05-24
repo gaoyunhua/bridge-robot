@@ -60,16 +60,36 @@ def card_action_to_name(action):
     return f"Action{action}"
 
 def load_data(data_file):
-    """加载数据文件"""
+    """加载数据文件（支持JSON和JSONL格式）"""
     if not os.path.exists(data_file):
         print(f"Error: {data_file} not found!")
         return None
     
-    data = []
-    skipped_count = 0
-    parse_error_count = 0
-    
+    # 首先检查文件格式
     with open(data_file, "r", encoding="utf-8") as f:
+        first_char = f.read(1)
+        f.seek(0)
+        
+        if first_char == '{' or first_char == '[':
+            # 可能是JSON格式（包含data数组）
+            try:
+                full_data = json.load(f)
+                # 检查是否是包含data数组的格式
+                if isinstance(full_data, dict) and 'data' in full_data:
+                    print(f"  Detected JSON format with {len(full_data['data'])} entries")
+                    return full_data['data']
+                elif isinstance(full_data, list):
+                    print(f"  Detected JSON array format with {len(full_data)} entries")
+                    return full_data
+            except json.JSONDecodeError as e:
+                print(f"  Failed to parse as JSON: {e}")
+                print(f"  Falling back to JSONL format...")
+        
+        # JSONL格式（每行一个JSON对象）
+        data = []
+        skipped_count = 0
+        parse_error_count = 0
+        
         for line_num, line in enumerate(f):
             line = line.strip()
             if not line:
@@ -87,11 +107,11 @@ def load_data(data_file):
                 parse_error_count += 1
                 if parse_error_count <= 5:  # 只打印前5个解析错误
                     print(f"JSON parse error line {line_num}: {e}")
-    
-    if skipped_count > 0 or parse_error_count > 0:
-        print(f"\nWarning: Skipped {skipped_count} invalid lines, {parse_error_count} parse errors")
-    
-    return data
+        
+        if skipped_count > 0 or parse_error_count > 0:
+            print(f"\nWarning: Skipped {skipped_count} invalid lines, {parse_error_count} parse errors")
+        
+        return data
 
 def display_board_with_endplay(data, index, total):
     """使用 endplay 显示单个 board"""
