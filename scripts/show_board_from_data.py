@@ -27,34 +27,17 @@ from config import EnvConfig, OFS_HANDS, NUM_PLAYERS
 
 # 常量定义
 BID_NAMES = ['1C', '1D', '1H', '1S', '1NT', 
-              '2C', '2D', '2H', '2S', '2NT',
-              '3C', '3D', '3H', '3S', '3NT',
-              '4C', '4D', '4H', '4S', '4NT',
-              '5C', '5D', '5H', '5S', '5NT',
-              '6C', '6D', '6H', '6S', '6NT',
-              '7C', '7D', '7H', '7S', '7NT']
+            '2C', '2D', '2H', '2S', '2NT',
+            '3C', '3D', '3H', '3S', '3NT',
+            '4C', '4D', '4H', '4S', '4NT',
+            '5C', '5D', '5H', '5S', '5NT',
+            '6C', '6D', '6H', '6S', '6NT',
+            '7C', '7D', '7H', '7S', '7NT']
 
 SUITS = ['♣', '♦', '♥', '♠']
 SUIT_NAMES = ['C', 'D', 'H', 'S']
 RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A']
 PLAYER_NAMES = ['North', 'East', 'South', 'West']
-
-
-def decode_hands_from_obs(obs, current_player):
-    """从 observation 中解码手牌"""
-    hands = {Player.north: [], Player.east: [], Player.south: [], Player.west: []}
-    
-    for pl in [Player.north, Player.east, Player.south, Player.west]:
-        hand_offset = OFS_HANDS + pl.value * 52
-        for card_idx in range(52):
-            if obs[hand_offset + card_idx] > 0.5:
-                suit = card_idx // 13
-                rank = card_idx % 13
-                card = Card(Rank[rank], Denom[suit])
-                hands[pl].append(card)
-    
-    return hands
-
 
 def action_to_bid_name(action):
     """将动作转换为叫牌名称"""
@@ -68,7 +51,6 @@ def action_to_bid_name(action):
         return "XX"
     return f"Unknown({action})"
 
-
 def card_action_to_name(action):
     """将出牌动作转换为牌张名称"""
     if 0 <= action < 52:
@@ -76,7 +58,6 @@ def card_action_to_name(action):
         rank = action % 13
         return f"{RANKS[rank]}{SUITS[suit]}"
     return f"Action{action}"
-
 
 def load_data(data_file):
     """加载数据文件"""
@@ -86,32 +67,39 @@ def load_data(data_file):
     
     data = []
     with open(data_file, "r", encoding="utf-8") as f:
-        for line in f:
+        for line_num, line in enumerate(f):
             line = line.strip()
-            if line:
-                try:
-                    data.append(json.loads(line))
-                except json.JSONDecodeError:
-                    continue
+            if not line:
+                continue
+            
+            try:
+                item = json.loads(line)
+                if isinstance(item, dict) and 'phase' in item:
+                    data.append(item)
+                else:
+                    print(f"Skipping invalid line {line_num}: {type(item).__name__}")
+            except json.JSONDecodeError as e:
+                print(f"JSON parse error line {line_num}: {e}")
     
     return data
-
 
 def display_board_with_endplay(data, index, total):
     """使用 endplay 显示单个 board"""
     os.system('cls' if os.name == 'nt' else 'clear')
     
+    # 安全检查
+    if index < 0 or index >= len(data):
+        print(f"Error: index {index} out of range (0-{len(data)-1})")
+        return
+    
     board = data[index]
+    if not isinstance(board, dict):
+        print(f"Error: invalid board at index {index}, type={type(board).__name__}")
+        return
+    
     board_idx = board.get('board_idx', index + 1)
     player_idx = board.get('player_idx', 0)
     phase = board.get('phase', 'unknown')
-    obs = board.get('obs', [])
-    
-    # 解码手牌
-    try:
-        hands = decode_hands_from_obs(obs, player_idx)
-    except:
-        hands = None
     
     # 使用 endplay 显示标题
     print("=" * 80)
@@ -122,32 +110,6 @@ def display_board_with_endplay(data, index, total):
     # 显示当前玩家信息
     print(f"  Current Player: {PLAYER_NAMES[player_idx]}")
     print()
-    
-    # 显示手牌 (使用 endplay 格式化)
-    if hands:
-        print("-" * 80)
-        print("  PLAYER HANDS")
-        print("-" * 80)
-        print()
-        
-        for pl in [Player.north, Player.east, Player.south, Player.west]:
-            hand = hands[pl]
-            if hand:
-                # 按花色分组
-                clubs = [c for c in hand if c.denom == Denom.clubs]
-                diamonds = [c for c in hand if c.denom == Denom.diamonds]
-                hearts = [c for c in hand if c.denom == Denom.hearts]
-                spades = [c for c in hand if c.denom == Denom.spades]
-                
-                hand_str = ""
-                if clubs: hand_str += f"  {SUITS[0]}: {''.join(str(c.rank)[0] for c in sorted(clubs))}"
-                if diamonds: hand_str += f"  {SUITS[1]}: {''.join(str(c.rank)[0] for c in sorted(diamonds))}"
-                if hearts: hand_str += f"  {SUITS[2]}: {''.join(str(c.rank)[0] for c in sorted(hearts))}"
-                if spades: hand_str += f"  {SUITS[3]}: {''.join(str(c.rank)[0] for c in sorted(spades))}"
-                
-                marker = " ←" if pl.value == player_idx else ""
-                print(f"  {pl.name:>5}:{hand_str}{marker}")
-        print()
     
     # 获取动作信息
     legal_actions = board.get('legal_actions', [])
@@ -197,7 +159,7 @@ def display_board_with_endplay(data, index, total):
         
         print()
         
-        # 显示动作值柱状图
+        # 显示动作值（如果可用）
         if action_values:
             print("-" * 80)
             print("  ACTION VALUES (DDS Evaluated)")
@@ -205,8 +167,8 @@ def display_board_with_endplay(data, index, total):
             print()
             
             positive_vals = [(action_to_bid_name(act), val) 
-                          for act, val in zip(legal_actions, action_values) 
-                          if val > 0]
+                         for act, val in zip(legal_actions, action_values) 
+                         if val > 0]
             
             if positive_vals:
                 print("  Positive Value Bids:")
@@ -223,7 +185,7 @@ def display_board_with_endplay(data, index, total):
         print("-" * 80)
         print()
         
-        # 显示合法出牌 (使用 endplay 牌张格式)
+        # 显示合法出牌（使用endplay牌张格式）
         print(f"  Legal Actions ({len(legal_actions)} cards):")
         print()
         
@@ -256,7 +218,7 @@ def display_board_with_endplay(data, index, total):
         
         print()
     
-    # 显示损失分析
+    # 显示损失分析（如果可用）
     if action_losses:
         print("-" * 80)
         print("  LOSS ANALYSIS")
@@ -281,7 +243,6 @@ def display_board_with_endplay(data, index, total):
     print("=" * 80)
     print("  Navigation: [Page Up] Previous | [Page Down] Next | [Home] First | [End] Last | [Q] Quit")
     print("=" * 80)
-
 
 def main():
     parser = argparse.ArgumentParser(
@@ -316,6 +277,11 @@ Examples:
         print("  No data found!")
         sys.exit(1)
     
+    # 调试信息
+    print(f"  Data type: {type(data)}")
+    if data:
+        print(f"  First item type: {type(data[0])}")
+    
     print()
     print("  Press Enter to start navigation...")
     try:
@@ -325,7 +291,13 @@ Examples:
     
     # 显示第一个 board
     current_index = 0
-    display_board_with_endplay(data, current_index, len(data))
+    try:
+        display_board_with_endplay(data, current_index, len(data))
+    except Exception as e:
+        print(f"\nError displaying initial board: {e}")
+        import traceback
+        traceback.print_exc()
+        return
     
     # 导航循环
     try:
@@ -350,12 +322,11 @@ Examples:
     except KeyboardInterrupt:
         pass
     except Exception as e:
-        print(f"\nError: {e}")
+        print(f"\nError in navigation: {e}")
         import traceback
         traceback.print_exc()
     
     print("\n  Exiting...")
-
 
 def get_key():
     """获取键盘按键"""
@@ -409,7 +380,6 @@ def get_key():
         pass
     
     return ''
-
 
 if __name__ == "__main__":
     main()
